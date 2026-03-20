@@ -1,6 +1,6 @@
 package com.shms.ui;
 
-import com.shms.dao.PatientDAO;
+import com.shms.service.PatientService;
 import com.shms.dao.LogDAO;
 import com.shms.model.Patient;
 import com.shms.ui.components.*;
@@ -17,12 +17,12 @@ public class PatientPanel extends BaseModernPanel {
     private JComboBox<String> cmbGender;
     private JTable tblPatients;
     private DefaultTableModel model;
-    private PatientDAO patientDAO;
+    private PatientService patientService;
     private LogDAO logDAO;
 
     public PatientPanel() {
         super("Enterprise Patient Directory");
-        this.patientDAO = new PatientDAO();
+        this.patientService = new PatientService();
         this.logDAO = new LogDAO();
         initializeUI();
         loadData("");
@@ -100,14 +100,14 @@ public class PatientPanel extends BaseModernPanel {
 
     private void loadData(String query) {
         model.setRowCount(0);
-        List<Patient> patients = patientDAO.searchPatients(query);
+        List<Patient> patients = patientService.searchPatients(query);
         java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
         for (Patient p : patients) {
             String dateAdded = p.getRegisteredAt() != null ? p.getRegisteredAt().format(formatter) : "Unknown";
             model.addRow(new Object[]{
                 p.getPatientId(), 
                 p.getFirstName() + " " + p.getLastName(), 
-                p.getNic(), 
+                p.getNicNumber(), 
                 p.getGender(), 
                 dateAdded
             });
@@ -125,15 +125,15 @@ public class PatientPanel extends BaseModernPanel {
             Patient p = new Patient();
             p.setFirstName(txtFirstName.getText().trim());
             p.setLastName(txtLastName.getText().trim());
-            p.setNic(txtNIC.getText().trim());
+            p.setNicNumber(txtNIC.getText().trim());
             p.setDob(LocalDate.parse(txtDOB.getText().trim()));
             p.setGender(cmbGender.getSelectedItem().toString());
             p.setContactNumber(txtContact.getText().trim());
             p.setAddress("N/A");
 
-            if (patientDAO.register(p)) {
+            if (patientService.registerPatient(p)) {
                 Toast.showSuccess(parentFrame, "Patient Registered Successfully!");
-                logDAO.record(1, "REG_PATIENT: " + p.getNic(), "PATIENT_MGMT");
+                logDAO.record(1, "REG_PATIENT: " + p.getNicNumber(), "PATIENT_MGMT");
                 loadData("");
                 clearForm();
             } else {

@@ -8,14 +8,14 @@ import java.util.List;
 
 public class PatientDAO {
 
-    public boolean register(Patient p) {
+    public boolean savePatient(Patient p) {
         String query = "INSERT INTO patients (first_name, last_name, nic_number, dob, gender, contact_number, address) VALUES (?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(query)) {
             
             pst.setString(1, p.getFirstName());
             pst.setString(2, p.getLastName());
-            pst.setString(3, p.getNic());
+            pst.setString(3, p.getNicNumber());
             pst.setDate(4, Date.valueOf(p.getDob()));
             pst.setString(5, p.getGender());
             pst.setString(6, p.getContactNumber());
@@ -23,7 +23,40 @@ public class PatientDAO {
 
             return pst.executeUpdate() > 0;
         } catch (SQLException e) {
-            System.err.println("[PatientDAO] Registration Error: " + e.getMessage());
+            System.err.println("[PatientDAO] Save Error: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean updatePatient(Patient p) {
+        String query = "UPDATE patients SET first_name=?, last_name=?, nic_number=?, dob=?, gender=?, contact_number=?, address=? WHERE patient_id=?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(query)) {
+            
+            pst.setString(1, p.getFirstName());
+            pst.setString(2, p.getLastName());
+            pst.setString(3, p.getNicNumber());
+            pst.setDate(4, Date.valueOf(p.getDob()));
+            pst.setString(5, p.getGender());
+            pst.setString(6, p.getContactNumber());
+            pst.setString(7, p.getAddress());
+            pst.setInt(8, p.getPatientId());
+
+            return pst.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("[PatientDAO] Update Error: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean deletePatient(int id) {
+        String query = "DELETE FROM patients WHERE patient_id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(query)) {
+            pst.setInt(1, id);
+            return pst.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("[PatientDAO] Delete Error: " + e.getMessage());
             return false;
         }
     }
@@ -60,11 +93,13 @@ public class PatientDAO {
         p.setPatientId(rs.getInt("patient_id"));
         p.setFirstName(rs.getString("first_name"));
         p.setLastName(rs.getString("last_name"));
-        p.setNic(rs.getString("nic_number"));
+        p.setNicNumber(rs.getString("nic_number"));
+        p.setDob(rs.getDate("dob").toLocalDate());
         p.setGender(rs.getString("gender"));
         p.setContactNumber(rs.getString("contact_number"));
+        p.setAddress(rs.getString("address"));
         
-        Timestamp ts = rs.getTimestamp("registered_at");
+        Timestamp ts = rs.getTimestamp("registered_date");
         if (ts != null) {
             p.setRegisteredAt(ts.toLocalDateTime());
         }

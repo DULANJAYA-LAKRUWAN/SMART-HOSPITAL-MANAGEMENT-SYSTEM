@@ -11,7 +11,7 @@ import java.awt.event.FocusEvent;
  */
 public class RoundedTextField extends JTextField {
 
-    private int radius = 10;
+    private int radius = 25;
     private Color borderColor = new Color(200, 200, 200);
     private Color focusColor = new Color(0, 112, 243);
     private boolean isFocused = false;

@@ -1,28 +1,31 @@
 package com.shms.ui;
 
-import com.shms.dao.BillingDAO;
-import com.shms.dao.PatientDAO;
-import com.shms.dao.DoctorDAO;
+import com.shms.service.BillingService;
+import com.shms.service.PatientService;
+import com.shms.service.DoctorService;
+import com.shms.service.MedicineService;
+import com.shms.model.Medicine;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.util.List;
 
 public class ReportPanel extends BaseModernPanel {
     
-    private BillingDAO billingDAO;
-    private PatientDAO patientDAO;
-    private DoctorDAO doctorDAO;
-    private com.shms.dao.MedicineDAO medicineDAO;
+    private BillingService billingService;
+    private PatientService patientService;
+    private DoctorService doctorService;
+    private MedicineService medicineService;
     
     private JLabel lblDailyRev, lblTotalPatients, lblTotalDoctors, lblTotalInvoices;
     private JPanel alertContainer;
 
     public ReportPanel() {
         super("Hospital Analytics & KPI Dashboard");
-        this.billingDAO = new BillingDAO();
-        this.patientDAO = new PatientDAO();
-        this.doctorDAO = new DoctorDAO();
-        this.medicineDAO = new com.shms.dao.MedicineDAO();
+        this.billingService = new BillingService();
+        this.patientService = new PatientService();
+        this.doctorService = new DoctorService();
+        this.medicineService = new MedicineService();
         initializeUI();
         refreshData();
     }
@@ -75,7 +78,7 @@ public class ReportPanel extends BaseModernPanel {
     private JLabel createKpiWidget(JPanel p, String title, String val, Color valColor) {
         JPanel card = createCardPanel();
         card.setLayout(new BorderLayout());
-        card.setBorder(new EmptyBorder(30, 30, 30, 30));
+        card.setBorder(new EmptyBorder(30,30,30,30));
         
         JLabel t = new JLabel(title);
         t.setFont(new Font("Segoe UI", Font.BOLD, 12));
@@ -92,25 +95,26 @@ public class ReportPanel extends BaseModernPanel {
     }
 
     private void refreshData() {
-        lblDailyRev.setText("Rs. " + String.format("%.2f", billingDAO.getDailyRevenue()));
-        lblTotalPatients.setText(String.valueOf(patientDAO.getAllPatients().size()));
-        lblTotalDoctors.setText(String.valueOf(doctorDAO.getAllDoctors().size()));
-        lblTotalInvoices.setText(String.valueOf(billingDAO.getDailyTransactionCount()));
+        lblDailyRev.setText("Rs. " + String.format("%.2f", billingService.getDailyRevenue()));
+        lblTotalPatients.setText(String.valueOf(patientService.getAllPatients().size()));
+        lblTotalDoctors.setText(String.valueOf(doctorService.getAllDoctors().size()));
+        lblTotalInvoices.setText(String.valueOf(billingService.getDailyTransactionCount()));
 
-        // Update Dynamic Alerts
-        java.util.List<String> lowItems = medicineDAO.getLowStockItems();
-        // Clear previous alert messages (skip the title)
+        // Update Dynamic Alerts (Threshold = 10 units)
+        List<Medicine> lowStockItems = medicineService.getLowStockAlerts(10);
+        
+        // Clear previous alert messages (skip the title and spacer)
         for (int i = alertContainer.getComponentCount() - 1; i > 1; i--) {
             alertContainer.remove(i);
         }
 
-        if (lowItems.isEmpty()) {
+        if (lowStockItems.isEmpty()) {
             JLabel healthy = new JLabel("✅ All inventory levels are optimal. No critical shortages detected.");
             healthy.setForeground(UIConstants.SUCCESS_GREEN);
             alertContainer.add(healthy);
         } else {
-            for (String m : lowItems) {
-                JLabel l = new JLabel("• " + m + " is critically low on stock.");
+            for (Medicine m : lowStockItems) {
+                JLabel l = new JLabel("• " + m.getName() + " is critically low (" + m.getStockQuantity() + " units left).");
                 l.setForeground(UIConstants.TEXT_PRIMARY);
                 alertContainer.add(l);
             }

@@ -32,7 +32,7 @@ public class DoctorDAO {
         return list;
     }
 
-    public boolean register(Doctor d) {
+    public boolean saveDoctor(Doctor d) {
         String query = "INSERT INTO doctors (user_id, specialization, contact, consultation_fee) VALUES (?, ?, ?, ?)";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(query)) {
@@ -44,8 +44,61 @@ public class DoctorDAO {
 
             return pst.executeUpdate() > 0;
         } catch (SQLException e) {
-            System.err.println("[DoctorDAO] Error registering doctor: " + e.getMessage());
+            System.err.println("[DoctorDAO] Save Error: " + e.getMessage());
             return false;
         }
+    }
+
+    public boolean updateDoctor(Doctor d) {
+        String query = "UPDATE doctors SET specialization=?, contact=?, consultation_fee=? WHERE doctor_id=?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(query)) {
+            
+            pst.setString(1, d.getSpecialization());
+            pst.setString(2, d.getContact());
+            pst.setDouble(3, d.getConsultationFee());
+            pst.setInt(4, d.getDoctorId());
+
+            return pst.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("[DoctorDAO] Update Error: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean deleteDoctor(int id) {
+        String query = "DELETE FROM doctors WHERE doctor_id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(query)) {
+            pst.setInt(1, id);
+            return pst.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("[DoctorDAO] Delete Error: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public Doctor getDoctorById(int id) {
+        String query = "SELECT d.*, u.full_name FROM doctors d JOIN users u ON d.user_id = u.user_id WHERE d.doctor_id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(query)) {
+            
+            pst.setInt(1, id);
+            try (ResultSet rs = pst.executeQuery()) {
+                if (rs.next()) {
+                    Doctor d = new Doctor();
+                    d.setDoctorId(rs.getInt("doctor_id"));
+                    d.setUserId(rs.getInt("user_id"));
+                    d.setSpecialization(rs.getString("specialization"));
+                    d.setConsultationFee(rs.getDouble("consultation_fee"));
+                    d.setFullName(rs.getString("full_name"));
+                    d.setContact(rs.getString("contact"));
+                    return d;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[DoctorDAO] Error fetching doctor: " + e.getMessage());
+        }
+        return null;
     }
 }

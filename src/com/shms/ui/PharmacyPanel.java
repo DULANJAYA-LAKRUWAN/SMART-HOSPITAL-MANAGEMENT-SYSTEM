@@ -1,6 +1,6 @@
 package com.shms.ui;
 
-import com.shms.dao.MedicineDAO;
+import com.shms.service.MedicineService;
 import com.shms.dao.LogDAO;
 import com.shms.model.Medicine;
 import com.shms.ui.components.*;
@@ -14,14 +14,14 @@ public class PharmacyPanel extends BaseModernPanel {
     private RoundedTextField txtBarcode, txtQty;
     private JTable tblCart;
     private DefaultTableModel model;
-    private MedicineDAO medicineDAO;
+    private MedicineService medicineService;
     private LogDAO logDAO;
     private JLabel lblTotal;
     private double grandTotal = 0.0;
 
     public PharmacyPanel() {
         super("Pharmacy POS & Inventory Dispatch");
-        this.medicineDAO = new MedicineDAO();
+        this.medicineService = new MedicineService();
         this.logDAO = new LogDAO();
         initializeUI();
     }
@@ -95,7 +95,7 @@ public class PharmacyPanel extends BaseModernPanel {
         if (code.isEmpty()) return;
 
         try {
-            Medicine m = medicineDAO.findByBarcode(code);
+            Medicine m = medicineService.getMedicineByBarcode(code);
             if (m != null) {
                 int qty = Integer.parseInt(txtQty.getText().trim());
                 double sub = m.getUnitPrice() * qty;
@@ -126,7 +126,7 @@ public class PharmacyPanel extends BaseModernPanel {
         for (int i = 0; i < model.getRowCount(); i++) {
             int medId = (Integer) model.getValueAt(i, 0);
             int qty = (Integer) model.getValueAt(i, 2);
-            if (!medicineDAO.updateStock(medId, qty)) {
+            if (!medicineService.updateStockBalance(medId, qty)) {
                 success = false;
             }
         }

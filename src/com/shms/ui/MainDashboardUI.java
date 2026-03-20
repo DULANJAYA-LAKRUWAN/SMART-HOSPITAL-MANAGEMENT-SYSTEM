@@ -174,9 +174,9 @@ public class MainDashboardUI extends JFrame {
         kpiGrid.setBorder(new EmptyBorder(35, 0, 35, 0));
 
         // Dynamic KPI Logic
-        int totalPatients = new com.shms.dao.PatientDAO().getAllPatients().size();
-        int totalDoctors = new com.shms.dao.DoctorDAO().getAllDoctors().size();
-        int totalInvoices = new com.shms.dao.BillingDAO().getDailyTransactionCount();
+        int totalPatients = new com.shms.service.PatientService().getAllPatients().size();
+        int totalDoctors = new com.shms.service.DoctorService().getAllDoctors().size();
+        int totalInvoices = new com.shms.service.BillingService().getDailyTransactionCount();
         
         kpiGrid.add(createSummaryCard("TOTAL PATIENTS", String.valueOf(totalPatients), UIConstants.ACCENT_BLUE));
         kpiGrid.add(createSummaryCard("TODAY'S SLOTS", "42", UIConstants.SUCCESS_GREEN)); // Advanced date-based logic later

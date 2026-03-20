@@ -23,8 +23,8 @@ public class Patient {
     public void setFirstName(String firstName) { this.firstName = firstName; }
     public String getLastName() { return lastName; }
     public void setLastName(String lastName) { this.lastName = lastName; }
-    public String getNic() { return nic; }
-    public void setNic(String nic) { this.nic = nic; }
+    public String getNicNumber() { return nic; }
+    public void setNicNumber(String nic) { this.nic = nic; }
     public LocalDate getDob() { return dob; }
     public void setDob(LocalDate dob) { this.dob = dob; }
     public String getGender() { return gender; }

@@ -6,41 +6,81 @@ import java.sql.*;
 
 public class AppointmentDAO {
 
-    public boolean isDoctorAvailable(int doctorId, Date date, Time slot) {
+    public java.util.List<Appointment> getAllAppointments() {
+        java.util.List<Appointment> list = new java.util.ArrayList<>();
+        String query = "SELECT * FROM appointments ORDER BY appointment_date DESC, time_slot DESC";
+        try (Connection conn = DBConnection.getConnection();
+             Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(query)) {
+            while (rs.next()) list.add(mapRow(rs));
+        } catch (SQLException e) {
+            System.err.println("[AppointmentDAO] Fetch Error: " + e.getMessage());
+        }
+        return list;
+    }
+
+    public boolean isSlotOccupied(int doctorId, java.time.LocalDate date, java.time.LocalTime slot) {
         String query = "SELECT COUNT(*) FROM appointments WHERE doctor_id = ? AND appointment_date = ? AND time_slot = ?";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(query)) {
-            
             pst.setInt(1, doctorId);
-            pst.setDate(2, date);
-            pst.setTime(3, slot);
-            
+            pst.setDate(2, Date.valueOf(date));
+            pst.setTime(3, Time.valueOf(slot));
             try (ResultSet rs = pst.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1) == 0; // Available if count is 0
-                }
+                if (rs.next()) return rs.getInt(1) > 0;
             }
-        } catch (SQLException e) {
-            System.err.println("[AppointmentDAO] Availability check failed: " + e.getMessage());
-        }
+        } catch (SQLException e) {}
         return false;
     }
 
-    public boolean book(Appointment a) {
+    public boolean saveAppointment(Appointment a) {
         String query = "INSERT INTO appointments (patient_id, doctor_id, appointment_date, time_slot, status) VALUES (?, ?, ?, ?, ?)";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(query)) {
-            
             pst.setInt(1, a.getPatientId());
             pst.setInt(2, a.getDoctorId());
             pst.setDate(3, Date.valueOf(a.getAppointmentDate()));
             pst.setTime(4, Time.valueOf(a.getTimeSlot()));
-            pst.setString(5, "PENDING");
-
+            pst.setString(5, a.getStatus() != null ? a.getStatus() : "PENDING");
             return pst.executeUpdate() > 0;
         } catch (SQLException e) {
-            System.err.println("[AppointmentDAO] Booking failed: " + e.getMessage());
             return false;
         }
+    }
+
+    public boolean updateStatus(int id, String status) {
+        String query = "UPDATE appointments SET status = ? WHERE appointment_id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(query)) {
+            pst.setString(1, status);
+            pst.setInt(2, id);
+            return pst.executeUpdate() > 0;
+        } catch (SQLException e) {
+            return false;
+        }
+    }
+
+    public java.util.List<Appointment> getAppointmentsByDate(java.time.LocalDate date) {
+        java.util.List<Appointment> list = new java.util.ArrayList<>();
+        String query = "SELECT * FROM appointments WHERE appointment_date = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(query)) {
+            pst.setDate(1, Date.valueOf(date));
+            try (ResultSet rs = pst.executeQuery()) {
+                while (rs.next()) list.add(mapRow(rs));
+            }
+        } catch (SQLException e) {}
+        return list;
+    }
+
+    private Appointment mapRow(ResultSet rs) throws SQLException {
+        Appointment a = new Appointment();
+        a.setAppointmentId(rs.getInt("appointment_id"));
+        a.setPatientId(rs.getInt("patient_id"));
+        a.setDoctorId(rs.getInt("doctor_id"));
+        a.setAppointmentDate(rs.getDate("appointment_date").toLocalDate());
+        a.setTimeSlot(rs.getTime("time_slot").toLocalTime());
+        a.setStatus(rs.getString("status"));
+        return a;
     }
 }

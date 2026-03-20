@@ -1,6 +1,6 @@
 package com.shms.ui;
 
-import com.shms.dao.AppointmentDAO;
+import com.shms.service.AppointmentService;
 import com.shms.dao.LogDAO;
 import com.shms.model.Appointment;
 import javax.swing.*;
@@ -12,12 +12,12 @@ import java.time.LocalTime;
 public class AppointmentPanel extends BaseModernPanel {
     
     private JTextField txtPatientId, txtDoctorId, txtDate, txtTime;
-    private AppointmentDAO appointmentDAO;
+    private AppointmentService appointmentService;
     private LogDAO logDAO;
 
     public AppointmentPanel() {
         super("Appointment Scheduler");
-        this.appointmentDAO = new AppointmentDAO();
+        this.appointmentService = new AppointmentService();
         this.logDAO = new LogDAO();
         initializeUI();
     }
@@ -66,22 +66,18 @@ public class AppointmentPanel extends BaseModernPanel {
             LocalDate dt = LocalDate.parse(txtDate.getText().trim());
             LocalTime tm = LocalTime.parse(txtTime.getText().trim());
 
-            if (appointmentDAO.isDoctorAvailable(dId, java.sql.Date.valueOf(dt), java.sql.Time.valueOf(tm))) {
-                Appointment a = new Appointment();
-                a.setPatientId(pId);
-                a.setDoctorId(dId);
-                a.setAppointmentDate(dt);
-                a.setTimeSlot(tm);
+            Appointment a = new Appointment();
+            a.setPatientId(pId);
+            a.setDoctorId(dId);
+            a.setAppointmentDate(dt);
+            a.setTimeSlot(tm);
 
-                if (appointmentDAO.book(a)) {
-                    logDAO.record(1, "BOOK_APPT: Patient-" + pId + " w/ Doctor-" + dId, "APPT_MGMT");
-                    com.shms.ui.components.Toast.showSuccess(parentFrame, "Success! Appointment secured.");
-                    clearForm();
-                } else {
-                    com.shms.ui.components.Toast.showError(parentFrame, "Booking Failed: Verify Patient and Doctor IDs exist.");
-                }
+            if (appointmentService.bookAppointment(a)) {
+                logDAO.record(1, "BOOK_APPT: Patient-" + pId + " w/ Doctor-" + dId, "APPT_MGMT");
+                com.shms.ui.components.Toast.showSuccess(parentFrame, "Success! Appointment secured.");
+                clearForm();
             } else {
-                com.shms.ui.components.Toast.showError(parentFrame, "Slot Conflict: Doctor is busy at requested time.");
+                com.shms.ui.components.Toast.showError(parentFrame, "Booking Failed: Conflict detected or IDs invalid.");
             }
         } catch (Exception ex) {
             com.shms.ui.components.Toast.showError(parentFrame, "Input Error: Invalid IDs or Date/Time formats (YYYY-MM-DD, HH:MM:SS).");

@@ -10,7 +10,7 @@ import java.awt.event.MouseEvent;
  */
 public class RoundedButton extends JButton {
 
-    private int radius = 10;
+    private int radius = 25;
     @SuppressWarnings("unused")
     private Color hoverColor;
     private Color originalColor;

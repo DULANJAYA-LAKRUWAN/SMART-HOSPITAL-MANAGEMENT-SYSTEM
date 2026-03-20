@@ -1,6 +1,6 @@
 package com.shms.ui;
 
-import com.shms.dao.DoctorDAO;
+import com.shms.service.DoctorService;
 import com.shms.dao.LogDAO;
 import com.shms.model.Doctor;
 import javax.swing.*;
@@ -14,12 +14,12 @@ public class DoctorPanel extends BaseModernPanel {
     private JTextField txtSpecialization, txtContact, txtFee, txtUserId;
     private JTable tblDoctors;
     private DefaultTableModel model;
-    private DoctorDAO doctorDAO;
+    private DoctorService doctorService;
     private LogDAO logDAO;
 
     public DoctorPanel() {
         super("Medical Staff Directory");
-        this.doctorDAO = new DoctorDAO();
+        this.doctorService = new DoctorService();
         this.logDAO = new LogDAO();
         initializeUI();
         loadData();
@@ -67,7 +67,7 @@ public class DoctorPanel extends BaseModernPanel {
 
     private void loadData() {
         model.setRowCount(0);
-        List<Doctor> doctors = doctorDAO.getAllDoctors();
+        List<Doctor> doctors = doctorService.getAllDoctors();
         for (Doctor d : doctors) {
             model.addRow(new Object[]{
                 d.getDoctorId(), d.getFullName(), d.getSpecialization(), d.getContact(), d.getConsultationFee()
@@ -89,7 +89,7 @@ public class DoctorPanel extends BaseModernPanel {
             d.setContact(txtContact.getText().trim());
             d.setConsultationFee(Double.parseDouble(txtFee.getText().trim()));
 
-            if (doctorDAO.register(d)) {
+            if (doctorService.registerDoctor(d)) {
                 logDAO.record(1, "REG_DOCTOR: ID-" + d.getUserId(), "DOCTOR_MGMT");
                 com.shms.ui.components.Toast.showSuccess(parentFrame, "Doctor Registered Successfully!");
                 loadData();

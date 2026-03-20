@@ -1,7 +1,8 @@
 package com.shms.ui;
 
-import com.shms.dao.BillingDAO;
+import com.shms.service.BillingService;
 import com.shms.dao.LogDAO;
+import com.shms.model.Bill;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
@@ -9,12 +10,12 @@ import java.awt.*;
 public class BillingPanel extends BaseModernPanel {
     
     private JTextField txtPatientId, txtAppointmentId, txtPharmTotal, txtConsultFee;
-    private BillingDAO billingDAO;
+    private BillingService billingService;
     private LogDAO logDAO;
 
     public BillingPanel() {
         super("Enterprise Billing & Finance");
-        this.billingDAO = new BillingDAO();
+        this.billingService = new BillingService();
         this.logDAO = new LogDAO();
         initializeUI();
     }
@@ -54,17 +55,30 @@ public class BillingPanel extends BaseModernPanel {
     private void generateInvoice() {
         JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
         try {
+            if (txtPatientId.getText().isEmpty() || txtAppointmentId.getText().isEmpty()) {
+                com.shms.ui.components.Toast.showError(parentFrame, "Validation Error: All fields are required.");
+                return;
+            }
+
             int pId = Integer.parseInt(txtPatientId.getText().trim());
             int aId = Integer.parseInt(txtAppointmentId.getText().trim());
             double cFee = Double.parseDouble(txtConsultFee.getText().trim());
             double pTotal = Double.parseDouble(txtPharmTotal.getText().trim());
 
-            if (billingDAO.createBill(pId, aId, pTotal, cFee)) {
-                logDAO.record(1, "GEN_INVOICE: Rs. " + String.format("%.2f", cFee + pTotal), "FINANCE");
+            Bill b = new Bill();
+            b.setPatientId(pId);
+            b.setAppointmentId(aId);
+            b.setConsultationTotal(cFee);
+            b.setPharmacyTotal(pTotal);
+            b.setPaymentStatus("PAID");
+
+            if (billingService.generateBill(b)) {
+                logDAO.record(1, "GEN_INVOICE: Rs. " + String.format("%.2f", b.getGrandTotal()), "FINANCE");
                 com.shms.ui.components.Toast.showSuccess(parentFrame, "Invoice Generated Successfully!");
+                billingService.simulatePrintBill(b); // Thermal printer simulation
                 clearForm();
             } else {
-                com.shms.ui.components.Toast.showError(parentFrame, "System Error: Failed to generate invoice. Verify Patient/Appointment IDs exist.");
+                com.shms.ui.components.Toast.showError(parentFrame, "System Error: Failed to generate invoice. Verify IDs exist.");
             }
         } catch (NumberFormatException ex) {
             com.shms.ui.components.Toast.showError(parentFrame, "Input Error: Ensure all fields contain valid numbers.");

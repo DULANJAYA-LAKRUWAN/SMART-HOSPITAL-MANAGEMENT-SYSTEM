@@ -7,6 +7,7 @@ public class Medicine {
     private String category;
     private double unitPrice;
     private int stockQuantity;
+    private java.time.LocalDate expiryDate;
 
     public Medicine() {}
 
@@ -23,4 +24,6 @@ public class Medicine {
     public void setUnitPrice(double unitPrice) { this.unitPrice = unitPrice; }
     public int getStockQuantity() { return stockQuantity; }
     public void setStockQuantity(int stockQuantity) { this.stockQuantity = stockQuantity; }
+    public java.time.LocalDate getExpiryDate() { return expiryDate; }
+    public void setExpiryDate(java.time.LocalDate expiryDate) { this.expiryDate = expiryDate; }
 }
