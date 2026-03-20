@@ -76,13 +76,15 @@ public class LoginUI extends JFrame {
 
         txtUsername = new RoundedTextField(25);
         txtUsername.setMaximumSize(new Dimension(320, 45));
-        txtUsername.setPlaceholder("Username or ID");
+        txtUsername.setPlaceholder("e.g. admin or dr.perera");
+        txtUsername.setToolTipText("Enter your assigned system username");
         txtUsername.addActionListener(e -> handleLogin());
         txtUsername.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         txtPassword = new RoundedPasswordField();
         txtPassword.setMaximumSize(new Dimension(320, 45));
-        txtPassword.setPlaceholder("Password");
+        txtPassword.setPlaceholder("e.g. admin123");
+        txtPassword.setToolTipText("Enter your secure password");
         txtPassword.addActionListener(e -> handleLogin());
         txtPassword.setAlignmentX(Component.CENTER_ALIGNMENT);
 

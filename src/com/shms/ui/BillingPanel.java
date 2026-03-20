@@ -2,14 +2,21 @@ package com.shms.ui;
 
 import com.shms.service.BillingService;
 import com.shms.dao.LogDAO;
+import com.shms.dao.PatientDAO;
+import com.shms.dao.AppointmentDAO;
 import com.shms.model.Bill;
+import com.shms.model.Patient;
+import com.shms.model.Appointment;
+import com.shms.ui.components.*;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.util.List;
 
 public class BillingPanel extends BaseModernPanel {
     
-    private JTextField txtPatientId, txtAppointmentId, txtPharmTotal, txtConsultFee;
+    private RoundedComboBox<ComboItem> cmbPatient, cmbAppt;
+    private JTextField txtPharmTotal, txtConsultFee;
     private BillingService billingService;
     private LogDAO logDAO;
 
@@ -21,12 +28,11 @@ public class BillingPanel extends BaseModernPanel {
     }
 
     private void initializeUI() {
-        // Centering the billing card
         JPanel centerWrapper = new JPanel(new GridBagLayout());
         centerWrapper.setOpaque(false);
 
         JPanel billingCard = createCardPanel();
-        billingCard.setPreferredSize(new Dimension(500, 600));
+        billingCard.setPreferredSize(new Dimension(550, 700));
         billingCard.setLayout(new BoxLayout(billingCard, BoxLayout.Y_AXIS));
         billingCard.setBorder(new EmptyBorder(40, 40, 40, 40));
 
@@ -36,10 +42,23 @@ public class BillingPanel extends BaseModernPanel {
         sectionalLabel.setBorder(new EmptyBorder(0, 0, 30, 0));
         billingCard.add(sectionalLabel);
 
-        txtPatientId = createModernInput(billingCard, "Patient ID Number", "e.g. 1");
-        txtAppointmentId = createModernInput(billingCard, "Appointment Reference ID", "e.g. 1");
-        txtConsultFee = createModernInput(billingCard, "Doctor Consultation Fee (Rs.)", "e.g. 1500.00");
-        txtPharmTotal = createModernInput(billingCard, "Pharmacy Charges (Rs.)", "e.g. 350.50");
+        // Selection 1: Patient
+        List<Patient> patients = new PatientDAO().getAllPatients();
+        ComboItem[] pItems = patients.stream()
+            .map(p -> new ComboItem(p.getPatientId(), p.getFirstName() + " " + p.getLastName()))
+            .toArray(ComboItem[]::new);
+        cmbPatient = (RoundedComboBox<ComboItem>) createModernCombo(billingCard, "Select Payer (Patient)", pItems);
+
+        // Selection 2: Appointment Reference
+        // Note: For simplicity, we load all appointments. In a production app, we'd filter by patient.
+        List<Appointment> appts = new AppointmentDAO().getAllAppointments();
+        ComboItem[] aItems = appts.stream()
+            .map(a -> new ComboItem(a.getAppointmentId(), "Session: " + a.getAppointmentDate() + " [ID: " + a.getAppointmentId() + "]"))
+            .toArray(ComboItem[]::new);
+        cmbAppt = (RoundedComboBox<ComboItem>) createModernCombo(billingCard, "Reference Appointment", aItems);
+
+        txtConsultFee = createModernInput(billingCard, "Doctor Consultation Fee (Rs.)", "1500.00");
+        txtPharmTotal = createModernInput(billingCard, "Pharmacy Charges (Rs.)", "0.00");
 
         billingCard.add(Box.createVerticalGlue());
 
@@ -55,41 +74,28 @@ public class BillingPanel extends BaseModernPanel {
     private void generateInvoice() {
         JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
         try {
-            if (txtPatientId.getText().isEmpty() || txtAppointmentId.getText().isEmpty()) {
-                com.shms.ui.components.Toast.showError(parentFrame, "Validation Error: All fields are required.");
-                return;
-            }
+            ComboItem selPatient = (ComboItem) cmbPatient.getSelectedItem();
+            ComboItem selAppt = (ComboItem) cmbAppt.getSelectedItem();
 
-            int pId = Integer.parseInt(txtPatientId.getText().trim());
-            int aId = Integer.parseInt(txtAppointmentId.getText().trim());
-            double cFee = Double.parseDouble(txtConsultFee.getText().trim());
-            double pTotal = Double.parseDouble(txtPharmTotal.getText().trim());
+            if (selPatient == null || selAppt == null) return;
 
             Bill b = new Bill();
-            b.setPatientId(pId);
-            b.setAppointmentId(aId);
-            b.setConsultationTotal(cFee);
-            b.setPharmacyTotal(pTotal);
+            b.setPatientId(selPatient.getId());
+            b.setAppointmentId(selAppt.getId());
+            b.setConsultationTotal(Double.parseDouble(txtConsultFee.getText().trim()));
+            b.setPharmacyTotal(Double.parseDouble(txtPharmTotal.getText().trim()));
             b.setPaymentStatus("PAID");
 
             if (billingService.generateBill(b)) {
-                logDAO.record(1, "GEN_INVOICE: Rs. " + String.format("%.2f", b.getGrandTotal()), "FINANCE");
-                com.shms.ui.components.Toast.showSuccess(parentFrame, "Invoice Generated Successfully!");
-                billingService.simulatePrintBill(b); // Thermal printer simulation
-                clearForm();
+                logDAO.record(1, "GEN_INVOICE: Patient " + selPatient.toString(), "FINANCE");
+                com.shms.ui.components.Toast.showSuccess(parentFrame, "Invoice Issued!");
+                billingService.simulatePrintBill(b);
             } else {
-                com.shms.ui.components.Toast.showError(parentFrame, "System Error: Failed to generate invoice. Verify IDs exist.");
+                com.shms.ui.components.Toast.showError(parentFrame, "System Error: Check IDs.");
             }
-        } catch (NumberFormatException ex) {
-            com.shms.ui.components.Toast.showError(parentFrame, "Input Error: Ensure all fields contain valid numbers.");
+        } catch (Exception ex) {
+            com.shms.ui.components.Toast.showError(parentFrame, "Invalid Price Format.");
         }
-    }
-
-    private void clearForm() {
-        txtPatientId.setText("");
-        txtAppointmentId.setText("");
-        txtConsultFee.setText("");
-        txtPharmTotal.setText("");
     }
 }
 

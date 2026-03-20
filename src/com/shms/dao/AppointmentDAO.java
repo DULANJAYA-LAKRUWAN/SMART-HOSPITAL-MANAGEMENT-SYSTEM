@@ -73,6 +73,35 @@ public class AppointmentDAO {
         return list;
     }
 
+    public int getDailyAppointmentCount() {
+        String query = "SELECT COUNT(*) FROM appointments WHERE appointment_date = CURDATE()";
+        try (Connection conn = DBConnection.getConnection();
+             Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(query)) {
+            if (rs.next()) return rs.getInt(1);
+        } catch (SQLException e) {}
+        return 0;
+    }
+
+    public java.util.List<Object[]> getRecentActivityFeed() {
+        java.util.List<Object[]> list = new java.util.ArrayList<>();
+        String query = "SELECT a.appointment_id, p.first_name, d.specialization, a.time_slot, a.status " +
+                       "FROM appointments a " +
+                       "JOIN patients p ON a.patient_id = p.patient_id " +
+                       "JOIN doctors d ON a.doctor_id = d.doctor_id " +
+                       "ORDER BY a.appointment_id DESC LIMIT 10";
+        try (Connection conn = DBConnection.getConnection();
+             Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(query)) {
+            while (rs.next()) {
+                list.add(new Object[]{
+                    rs.getInt(1), rs.getString(2), rs.getString(3), rs.getTime(4).toString(), rs.getString(5)
+                });
+            }
+        } catch (SQLException e) {}
+        return list;
+    }
+
     private Appointment mapRow(ResultSet rs) throws SQLException {
         Appointment a = new Appointment();
         a.setAppointmentId(rs.getInt("appointment_id"));

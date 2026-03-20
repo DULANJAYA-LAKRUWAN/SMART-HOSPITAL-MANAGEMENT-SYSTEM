@@ -58,11 +58,22 @@ public class PatientPanel extends BaseModernPanel {
         titleLabel.setBorder(new EmptyBorder(0, 0, 20, 0));
         formCard.add(titleLabel);
 
-        txtFirstName = (RoundedTextField) createModernInput(formCard, "Given Name", "e.g. John");
-        txtLastName = (RoundedTextField) createModernInput(formCard, "Surname", "e.g. Doe");
-        txtNIC = (RoundedTextField) createModernInput(formCard, "Government Identity (NIC)", "e.g. 199012345678");
-        txtDOB = (RoundedTextField) createModernInput(formCard, "Birth Date (YYYY-MM-DD)", "e.g. 1990-05-15");
+        txtFirstName = (RoundedTextField) createModernInput(formCard, "Given Name", "e.g. Nimal");
+        txtFirstName.setToolTipText("Enter patient's first legal name");
+        txtLastName = (RoundedTextField) createModernInput(formCard, "Surname", "e.g. Jayasinghe");
+        txtLastName.setToolTipText("Enter patient's family name");
+        txtNIC = (RoundedTextField) createModernInput(formCard, "Government Identity (NIC)", "e.g. 199012345678 or 851234567V");
+        txtNIC.setToolTipText("12-digit NEW NIC or 9-digit OLD NIC with V/X");
         
+        txtDOB = (RoundedTextField) createModernInput(formCard, "Birth Date (YYYY-MM-DD)", LocalDate.now().toString());
+        JButton btnCal = new JButton("📅 Select DOB from Calendar");
+        btnCal.addActionListener(e -> {
+            LocalDate picked = new com.shms.ui.components.ModernDatePicker((Frame)SwingUtilities.getWindowAncestor(this)).pick();
+            if (picked != null) txtDOB.setText(picked.toString());
+        });
+        formCard.add(btnCal);
+        formCard.add(Box.createVerticalStrut(15));
+
         formCard.add(new JLabel("Patient Gender"));
         formCard.add(Box.createVerticalStrut(5));
         cmbGender = new JComboBox<>(new String[]{"MALE", "FEMALE", "OTHER"});

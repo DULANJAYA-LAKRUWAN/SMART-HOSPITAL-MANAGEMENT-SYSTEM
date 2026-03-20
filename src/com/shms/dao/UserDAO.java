@@ -33,4 +33,25 @@ public class UserDAO {
         }
         return null;
     }
+    public java.util.List<User> getUsersByRole(String role) {
+        java.util.List<User> list = new java.util.ArrayList<>();
+        String query = "SELECT * FROM users WHERE role = ? AND status = TRUE";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(query)) {
+            pst.setString(1, role);
+            try (ResultSet rs = pst.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new User(
+                        rs.getInt("user_id"),
+                        rs.getString("username"),
+                        rs.getString("role"),
+                        rs.getString("full_name")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[UserDAO] Fetch Error: " + e.getMessage());
+        }
+        return list;
+    }
 }

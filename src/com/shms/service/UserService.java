@@ -21,4 +21,8 @@ public class UserService {
         if (user == null || user.getRole() == null) return false;
         return user.getRole().equalsIgnoreCase(requiredRole) || user.getRole().equalsIgnoreCase("ADMIN");
     }
+
+    public java.util.List<User> getUserByRole(String role) {
+        return userDAO.getUsersByRole(role);
+    }
 }

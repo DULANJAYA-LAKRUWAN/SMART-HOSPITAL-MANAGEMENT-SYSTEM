@@ -2,16 +2,24 @@ package com.shms.ui;
 
 import com.shms.service.AppointmentService;
 import com.shms.dao.LogDAO;
+import com.shms.dao.PatientDAO;
+import com.shms.dao.DoctorDAO;
 import com.shms.model.Appointment;
+import com.shms.model.Patient;
+import com.shms.model.Doctor;
+import com.shms.ui.components.ComboItem;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 public class AppointmentPanel extends BaseModernPanel {
     
-    private JTextField txtPatientId, txtDoctorId, txtDate, txtTime;
+    private JComboBox<ComboItem> cmbPatient, cmbDoctor;
+    private JTextField txtDate;
+    private JSpinner spnTime;
     private AppointmentService appointmentService;
     private LogDAO logDAO;
 
@@ -23,12 +31,11 @@ public class AppointmentPanel extends BaseModernPanel {
     }
 
     private void initializeUI() {
-        // Centering the booking card
         JPanel centerWrapper = new JPanel(new GridBagLayout());
         centerWrapper.setOpaque(false);
 
         JPanel bookingCard = createCardPanel();
-        bookingCard.setPreferredSize(new Dimension(500, 600));
+        bookingCard.setPreferredSize(new Dimension(550, 700));
         bookingCard.setLayout(new BoxLayout(bookingCard, BoxLayout.Y_AXIS));
         bookingCard.setBorder(new EmptyBorder(40, 40, 40, 40));
 
@@ -38,14 +45,34 @@ public class AppointmentPanel extends BaseModernPanel {
         sectionalLabel.setBorder(new EmptyBorder(0, 0, 30, 0));
         bookingCard.add(sectionalLabel);
 
-        txtPatientId = createModernInput(bookingCard, "Target Patient ID", "e.g. 1");
-        txtDoctorId = createModernInput(bookingCard, "Assigned Doctor ID", "e.g. 1");
-        txtDate = createModernInput(bookingCard, "Preferred Date (YYYY-MM-DD)", "2026-11-20");
-        txtTime = createModernInput(bookingCard, "Time Slot (HH:MM:SS)", "09:30:00");
+        // Selection Combos
+        List<Patient> patients = new PatientDAO().getAllPatients();
+        ComboItem[] pItems = patients.stream().map(p -> new ComboItem(p.getPatientId(), p.getFirstName() + " " + p.getLastName())).toArray(ComboItem[]::new);
+        cmbPatient = createModernCombo(bookingCard, "Select Patient", pItems);
+
+        List<Doctor> doctors = new DoctorDAO().getAllDoctors();
+        ComboItem[] dItems = doctors.stream().map(d -> new ComboItem(d.getDoctorId(), d.getFullName())).toArray(ComboItem[]::new);
+        cmbDoctor = createModernCombo(bookingCard, "Select Doctor", dItems);
+
+        // Date with Calendar Icon
+        JPanel datePanel = new JPanel(new BorderLayout(10, 0));
+        datePanel.setOpaque(false);
+        txtDate = createModernInput(bookingCard, "Preferred Date", LocalDate.now().toString());
+        
+        JButton btnCal = new JButton("📅 Pick Date");
+        btnCal.addActionListener(e -> {
+            LocalDate picked = new com.shms.ui.components.ModernDatePicker((Frame)SwingUtilities.getWindowAncestor(this)).pick();
+            if (picked != null) txtDate.setText(picked.toString());
+        });
+        bookingCard.add(btnCal);
+        bookingCard.add(Box.createVerticalStrut(15));
+
+        // Time with Digital Watch feel (Spinner)
+        spnTime = createModernTimeSelection(bookingCard, "Time Slot (Digital Scroll)");
 
         bookingCard.add(Box.createVerticalGlue());
 
-        JButton btnBook = createPrimaryButton("Verify & Confirm Slot");
+        JButton btnBook = createPrimaryButton("Confirm Appointment Slot");
         btnBook.addActionListener(e -> handleBooking());
         bookingCard.add(btnBook);
 
@@ -56,38 +83,31 @@ public class AppointmentPanel extends BaseModernPanel {
     private void handleBooking() {
         JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
         try {
-            if (txtPatientId.getText().isEmpty() || txtDoctorId.getText().isEmpty()) {
-                com.shms.ui.components.Toast.showError(parentFrame, "Validation Error: All fields are required.");
-                return;
-            }
+            ComboItem selPatient = (ComboItem) cmbPatient.getSelectedItem();
+            ComboItem selDoctor = (ComboItem) cmbDoctor.getSelectedItem();
+            
+            if (selPatient == null || selDoctor == null) return;
 
-            int pId = Integer.parseInt(txtPatientId.getText().trim());
-            int dId = Integer.parseInt(txtDoctorId.getText().trim());
             LocalDate dt = LocalDate.parse(txtDate.getText().trim());
-            LocalTime tm = LocalTime.parse(txtTime.getText().trim());
+            
+            // Extract Time from Spinner
+            java.util.Date sTime = (java.util.Date) spnTime.getValue();
+            LocalTime tm = sTime.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalTime();
 
             Appointment a = new Appointment();
-            a.setPatientId(pId);
-            a.setDoctorId(dId);
+            a.setPatientId(selPatient.getId());
+            a.setDoctorId(selDoctor.getId());
             a.setAppointmentDate(dt);
             a.setTimeSlot(tm);
 
             if (appointmentService.bookAppointment(a)) {
-                logDAO.record(1, "BOOK_APPT: Patient-" + pId + " w/ Doctor-" + dId, "APPT_MGMT");
-                com.shms.ui.components.Toast.showSuccess(parentFrame, "Success! Appointment secured.");
-                clearForm();
+                logDAO.record(1, "BOOK_APPT: " + dt + " at " + tm, "APPT_MGMT");
+                com.shms.ui.components.Toast.showSuccess(parentFrame, "Success! Appointment booked.");
             } else {
-                com.shms.ui.components.Toast.showError(parentFrame, "Booking Failed: Conflict detected or IDs invalid.");
+                com.shms.ui.components.Toast.showError(parentFrame, "Booking Conflict.");
             }
         } catch (Exception ex) {
-            com.shms.ui.components.Toast.showError(parentFrame, "Input Error: Invalid IDs or Date/Time formats (YYYY-MM-DD, HH:MM:SS).");
+            com.shms.ui.components.Toast.showError(parentFrame, "Input Format Error.");
         }
-    }
-
-    private void clearForm() {
-        txtPatientId.setText("");
-        txtDoctorId.setText("");
-        txtDate.setText("");
-        txtTime.setText("");
     }
 }

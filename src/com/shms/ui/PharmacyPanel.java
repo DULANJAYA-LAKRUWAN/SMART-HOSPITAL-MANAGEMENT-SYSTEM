@@ -2,16 +2,19 @@ package com.shms.ui;
 
 import com.shms.service.MedicineService;
 import com.shms.dao.LogDAO;
+import com.shms.dao.MedicineDAO;
 import com.shms.model.Medicine;
 import com.shms.ui.components.*;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.util.List;
 
 public class PharmacyPanel extends BaseModernPanel {
     
     private RoundedTextField txtBarcode, txtQty;
+    private JComboBox<ComboItem> cmbMedicines;
     private JTable tblCart;
     private DefaultTableModel model;
     private MedicineService medicineService;
@@ -27,31 +30,49 @@ public class PharmacyPanel extends BaseModernPanel {
     }
 
     private void initializeUI() {
-        // --- TOP SCANNER BAR ---
+        // --- TOP SCANNER & SELECTION BAR ---
         JPanel topBar = createCardPanel();
-        topBar.setLayout(new FlowLayout(FlowLayout.LEFT, 20, 20));
+        topBar.setLayout(new FlowLayout(FlowLayout.LEFT, 15, 15));
         
-        JLabel lblScan = new JLabel("READY TO SCAN BARCODE");
-        lblScan.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        lblScan.setForeground(UIConstants.ACCENT_BLUE);
-        topBar.add(lblScan);
+        JLabel lblHeader = new JLabel("INVENTORY DISPATCH");
+        lblHeader.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblHeader.setForeground(UIConstants.ACCENT_BLUE);
+        topBar.add(lblHeader);
 
-        txtBarcode = new RoundedTextField(25);
-        txtBarcode.setPreferredSize(new Dimension(350, 45));
-        txtBarcode.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        txtBarcode.setPlaceholder("Scan or Type SKU...");
+        // 1. Barcode Field
+        txtBarcode = new RoundedTextField(15);
+        txtBarcode.setPreferredSize(new Dimension(200, 45));
+        txtBarcode.setPlaceholder("Scan Barcode...");
         txtBarcode.addActionListener(e -> handleBarcodeScan());
         topBar.add(txtBarcode);
+
+        topBar.add(new JLabel("OR Selection:"));
+
+        // 2. Manual Selector
+        List<Medicine> meds = new MedicineDAO().getAllMedicines();
+        ComboItem[] medItems = meds.stream()
+            .map(m -> new ComboItem(m.getMedicineId(), m.getName() + " [Rs." + m.getUnitPrice() + "]"))
+            .toArray(ComboItem[]::new);
+        
+        cmbMedicines = new JComboBox<>(medItems);
+        cmbMedicines.setPreferredSize(new Dimension(250, 45));
+        cmbMedicines.setFont(UIConstants.FONT_NORMAL);
+        cmbMedicines.setBackground(Color.WHITE);
+        topBar.add(cmbMedicines);
         
         JLabel lblQty = new JLabel("QTY:");
         lblQty.setForeground(UIConstants.TEXT_SECONDARY);
         topBar.add(lblQty);
 
-        txtQty = new RoundedTextField(5);
+        txtQty = new RoundedTextField(4);
         txtQty.setText("1");
-        txtQty.setPreferredSize(new Dimension(60, 45));
+        txtQty.setPreferredSize(new Dimension(50, 45));
         txtQty.setHorizontalAlignment(SwingConstants.CENTER);
         topBar.add(txtQty);
+
+        JButton btnAdd = createPrimaryButton("+ Add Item");
+        btnAdd.addActionListener(e -> handleManualAdd());
+        topBar.add(btnAdd);
 
         add(topBar, BorderLayout.NORTH);
 
@@ -70,7 +91,7 @@ public class PharmacyPanel extends BaseModernPanel {
 
         add(tableCard, BorderLayout.CENTER);
 
-        // --- FOOTER (Grand Total & Checkout) ---
+        // --- FOOTER ---
         JPanel footerBar = createCardPanel();
         footerBar.setLayout(new BorderLayout(30, 0));
         footerBar.setBorder(new EmptyBorder(20, 30, 20, 30));
@@ -90,55 +111,56 @@ public class PharmacyPanel extends BaseModernPanel {
     }
 
     private void handleBarcodeScan() {
-        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
         String code = txtBarcode.getText().trim();
         if (code.isEmpty()) return;
+        Medicine m = medicineService.getMedicineByBarcode(code);
+        if (m != null) addItemToCart(m);
+        else Toast.showError(null, "Barcode '" + code + "' not found.");
+        txtBarcode.setText("");
+        txtBarcode.requestFocus();
+    }
 
+    private void handleManualAdd() {
+        ComboItem selection = (ComboItem) cmbMedicines.getSelectedItem();
+        if (selection == null) return;
+        Medicine m = new MedicineDAO().getMedicineById(selection.getId());
+        if (m != null) addItemToCart(m);
+    }
+
+    private void addItemToCart(Medicine m) {
         try {
-            Medicine m = medicineService.getMedicineByBarcode(code);
-            if (m != null) {
-                int qty = Integer.parseInt(txtQty.getText().trim());
-                double sub = m.getUnitPrice() * qty;
-                model.addRow(new Object[]{m.getMedicineId(), m.getName(), qty, m.getUnitPrice(), sub});
-                
-                grandTotal += sub;
-                lblTotal.setText("TOTAL: Rs. " + String.format("%.2f", grandTotal));
-                
-                txtBarcode.setText(""); // Ready for next scan
-                txtBarcode.requestFocus();
-            } else {
-                Toast.showError(parentFrame, "Product code '" + code + "' not recognized.");
-            }
+            int qty = Integer.parseInt(txtQty.getText().trim());
+            double sub = m.getUnitPrice() * qty;
+            model.addRow(new Object[]{m.getMedicineId(), m.getName(), qty, m.getUnitPrice(), sub});
+            grandTotal += sub;
+            lblTotal.setText("TOTAL: Rs. " + String.format("%.2f", grandTotal));
         } catch (NumberFormatException ex) {
-            Toast.showError(parentFrame, "Quantity must be a valid number.");
+            Toast.showError(null, "Invalid Quantity.");
         }
     }
 
     private void finalizeSale() {
         JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
         if (model.getRowCount() == 0) {
-            Toast.showError(parentFrame, "Cart is empty. Scan items to checkout.");
+            Toast.showError(parentFrame, "Cart is empty.");
             return;
         }
 
-        // --- ATOMIC STOCK SYNCHRONIZATION ---
         boolean success = true;
         for (int i = 0; i < model.getRowCount(); i++) {
             int medId = (Integer) model.getValueAt(i, 0);
             int qty = (Integer) model.getValueAt(i, 2);
-            if (!medicineService.updateStockBalance(medId, qty)) {
-                success = false;
-            }
+            if (!medicineService.updateStockBalance(medId, qty)) success = false;
         }
 
         if (success) {
             logDAO.record(1, "PHARMA_SALE: Rs. " + grandTotal, "PHARMACY_POS");
-            Toast.showSuccess(parentFrame, "Transaction Finalized & Inventory Updated!");
+            Toast.showSuccess(parentFrame, "Sale Finalized!");
             model.setRowCount(0);
             grandTotal = 0.0;
             lblTotal.setText("TOTAL: Rs. 0.00");
         } else {
-            Toast.showError(parentFrame, "Critical Error: Could not update certain stock records.");
+            Toast.showError(parentFrame, "Critical Stock Error.");
         }
     }
 }

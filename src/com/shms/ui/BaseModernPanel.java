@@ -52,6 +52,43 @@ public abstract class BaseModernPanel extends JPanel {
         return f;
     }
 
+    protected <E> JComboBox<E> createModernCombo(JPanel container, String label, E[] items) {
+        JLabel lbl = new JLabel(label);
+        lbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        lbl.setForeground(UIConstants.TEXT_SECONDARY);
+        container.add(lbl);
+        container.add(Box.createVerticalStrut(5));
+
+        RoundedComboBox<E> combo = new RoundedComboBox<>(items);
+        combo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 45));
+        container.add(combo);
+        container.add(Box.createVerticalStrut(15));
+        return combo;
+    }
+
+    /**
+     * Creates a digital-scroll-style time input (Digital Watch feel).
+     */
+    protected JSpinner createModernTimeSelection(JPanel container, String label) {
+        JLabel lbl = new JLabel(label);
+        lbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        lbl.setForeground(UIConstants.TEXT_SECONDARY);
+        container.add(lbl);
+        container.add(Box.createVerticalStrut(5));
+
+        SpinnerDateModel model = new SpinnerDateModel();
+        JSpinner spinner = new JSpinner(model);
+        JSpinner.DateEditor editor = new JSpinner.DateEditor(spinner, "HH:mm:ss");
+        spinner.setEditor(editor);
+        spinner.setMaximumSize(new Dimension(Integer.MAX_VALUE, 45));
+        spinner.setFont(new Font("Consolas", Font.BOLD, 18));
+        spinner.setBackground(Color.WHITE);
+        
+        container.add(spinner);
+        container.add(Box.createVerticalStrut(15));
+        return spinner;
+    }
+
     /**
      * Styles a JScrollPane to use the sleek ModernScrollBarUI.
      */

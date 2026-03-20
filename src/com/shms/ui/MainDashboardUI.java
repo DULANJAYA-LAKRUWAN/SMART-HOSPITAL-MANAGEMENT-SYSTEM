@@ -2,7 +2,6 @@ package com.shms.ui;
 
 import com.shms.model.User;
 import com.shms.ui.components.*;
-import com.shms.db.DBConnection;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
@@ -50,13 +49,31 @@ public class MainDashboardUI extends JFrame {
         sideMenu.setBackground(UIConstants.SIDE_MENU_DARK); 
         sideMenu.setLayout(new BoxLayout(sideMenu, BoxLayout.Y_AXIS));
 
-        // Brand Header
-        JPanel brandPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 30));
+        // Brand Header & Live Digital Watch
+        JPanel brandPanel = new JPanel();
+        brandPanel.setLayout(new BoxLayout(brandPanel, BoxLayout.Y_AXIS));
         brandPanel.setOpaque(false);
-        JLabel logo = new JLabel("⚕ SHMS PRO");
+        brandPanel.setBorder(new EmptyBorder(30, 0, 30, 0));
+
+        JLabel logo = new JLabel("⚕ SHMS PRO", SwingConstants.CENTER);
         logo.setFont(new Font("Segoe UI", Font.BOLD, 24));
         logo.setForeground(Color.WHITE);
+        logo.setAlignmentX(Component.CENTER_ALIGNMENT);
         brandPanel.add(logo);
+
+        JLabel lblWatch = new JLabel("00:00:00 AM", SwingConstants.CENTER);
+        lblWatch.setFont(new Font("Consolas", Font.BOLD, 18));
+        lblWatch.setForeground(UIConstants.ACCENT_BLUE);
+        lblWatch.setAlignmentX(Component.CENTER_ALIGNMENT);
+        brandPanel.add(Box.createVerticalStrut(10));
+        brandPanel.add(lblWatch);
+
+        // Update Clock every second
+        Timer clockTimer = new Timer(1000, e -> {
+            lblWatch.setText(java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("hh:mm:ss a")));
+        });
+        clockTimer.start();
+        
         sideMenu.add(brandPanel);
 
         // Profile Section
@@ -149,8 +166,11 @@ public class MainDashboardUI extends JFrame {
         add(contentArea, BorderLayout.CENTER);
     }
 
+    private JLabel lblTotalPatients, lblActiveDoctors, lblTodayRev, lblApptCount;
+    private javax.swing.table.DefaultTableModel dashboardFeedModel;
+
     private JPanel buildDashboardHome() {
-        JPanel home = new JPanel(new BorderLayout());
+        JPanel home = new JPanel(new BorderLayout(0, 30));
         home.setBackground(UIConstants.BACKGROUND_LIGHT);
         home.setBorder(new EmptyBorder(40, 50, 40, 50));
 
@@ -162,8 +182,8 @@ public class MainDashboardUI extends JFrame {
         wlcm.setForeground(UIConstants.TEXT_PRIMARY);
         hdr.add(wlcm, BorderLayout.NORTH);
 
-        JLabel sub = new JLabel("Health Center Performance Snapshot for March 20, 2026");
-        sub.setFont(UIConstants.FONT_NORMAL);
+        JLabel sub = new JLabel("Live Hospital System Monitor | Active Session Dashboard");
+        sub.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         sub.setForeground(UIConstants.TEXT_SECONDARY);
         hdr.add(sub, BorderLayout.SOUTH);
         home.add(hdr, BorderLayout.NORTH);
@@ -171,38 +191,77 @@ public class MainDashboardUI extends JFrame {
         // KPI Grid
         JPanel kpiGrid = new JPanel(new GridLayout(1, 4, 25, 0));
         kpiGrid.setOpaque(false);
-        kpiGrid.setBorder(new EmptyBorder(35, 0, 35, 0));
 
-        // Dynamic KPI Logic
-        int totalPatients = new com.shms.service.PatientService().getAllPatients().size();
-        int totalDoctors = new com.shms.service.DoctorService().getAllDoctors().size();
-        int totalInvoices = new com.shms.service.BillingService().getDailyTransactionCount();
+        lblTotalPatients = new JLabel("0");
+        lblActiveDoctors = new JLabel("0");
+        lblTodayRev = new JLabel("Rs. 0");
+        lblApptCount = new JLabel("0");
+
+        kpiGrid.add(createLiveCard("👥 PATIENTS", lblTotalPatients, UIConstants.ACCENT_BLUE));
+        kpiGrid.add(createLiveCard("🩺 DOCTORS", lblActiveDoctors, UIConstants.SUCCESS_GREEN));
+        kpiGrid.add(createLiveCard("⚖️ REVENUE", lblTodayRev, UIConstants.DANGER_RED));
+        kpiGrid.add(createLiveCard("📅 BOOKINGS", lblApptCount, UIConstants.SIDE_MENU_DARK));
         
-        kpiGrid.add(createSummaryCard("TOTAL PATIENTS", String.valueOf(totalPatients), UIConstants.ACCENT_BLUE));
-        kpiGrid.add(createSummaryCard("TODAY'S SLOTS", "42", UIConstants.SUCCESS_GREEN)); // Advanced date-based logic later
-        kpiGrid.add(createSummaryCard("INVOICES TODAY", String.valueOf(totalInvoices), UIConstants.DANGER_RED)); 
-        kpiGrid.add(createSummaryCard("ON-DUTY STAFF", String.valueOf(totalDoctors), UIConstants.SIDE_MENU_DARK));
-        home.add(kpiGrid, BorderLayout.CENTER);
+        JPanel midContent = new JPanel(new BorderLayout(0, 25));
+        midContent.setOpaque(false);
+        midContent.add(kpiGrid, BorderLayout.NORTH);
 
-        // Status Card
-        RoundedPanel status = new RoundedPanel(20, Color.WHITE);
-        status.setLayout(new BorderLayout());
-        status.setBorder(new EmptyBorder(25, 25, 25, 25));
+        // Recent Activity table
+        RoundedPanel activityCard = new RoundedPanel(25, Color.WHITE);
+        activityCard.setLayout(new BorderLayout());
+        activityCard.setBorder(new EmptyBorder(25, 25, 25, 25));
+
+        JLabel activityTitle = new JLabel("REAL-TIME CLINIC ACTIVITY");
+        activityTitle.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        activityTitle.setForeground(UIConstants.TEXT_PRIMARY);
+        activityTitle.setBorder(new EmptyBorder(0, 0, 15, 0));
+        activityCard.add(activityTitle, BorderLayout.NORTH);
+
+        dashboardFeedModel = new javax.swing.table.DefaultTableModel(new String[]{"ID", "Patient Name", "Department", "Time Slot", "Status"}, 0);
+        JTable tblRecent = new JTable(dashboardFeedModel);
+        tblRecent.setRowHeight(40);
+        tblRecent.setShowVerticalLines(false);
         
-        boolean isConnected = DBConnection.checkStatus();
-        String statusText = isConnected ? "System Status: ⚡ Ultra Fast | Database: 📗 Connected" : "System Status: ⚠️ Critical | Database: 🔴 DISCONNECTED";
-        Color statusColor = isConnected ? UIConstants.SUCCESS_GREEN : UIConstants.DANGER_RED;
+        JScrollPane scroll = new JScrollPane(tblRecent);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getViewport().setBackground(Color.WHITE);
+        activityCard.add(scroll, BorderLayout.CENTER);
+        
+        midContent.add(activityCard, BorderLayout.CENTER);
+        home.add(midContent, BorderLayout.CENTER);
 
-        JLabel stitle = new JLabel(statusText);
-        stitle.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 15));
-        stitle.setForeground(statusColor);
-        status.add(stitle);
-        home.add(status, BorderLayout.SOUTH);
+        // Auto-refresh Timer (Every 10 seconds)
+        Timer refreshTimer = new Timer(10000, e -> refreshDashboardData());
+        refreshTimer.start();
+        refreshDashboardData(); // Initial load
 
         return home;
     }
 
-    private JPanel createSummaryCard(String title, String value, Color accent) {
+    private void refreshDashboardData() {
+        try {
+            // Stats Queries
+            int pCount = new com.shms.dao.PatientDAO().getAllPatients().size();
+            int dCount = new com.shms.dao.DoctorDAO().getAllDoctors().size();
+            double rev = new com.shms.service.BillingService().getDailyRevenue();
+            int aCount = new com.shms.dao.AppointmentDAO().getDailyAppointmentCount();
+
+            // Update Labels
+            lblTotalPatients.setText(String.valueOf(pCount));
+            lblActiveDoctors.setText(String.valueOf(dCount));
+            lblTodayRev.setText("Rs. " + String.format("%.0f", rev));
+            lblApptCount.setText(String.valueOf(aCount));
+
+            // Update Feed
+            dashboardFeedModel.setRowCount(0);
+            java.util.List<Object[]> feed = new com.shms.dao.AppointmentDAO().getRecentActivityFeed();
+            for (Object[] row : feed) {
+                dashboardFeedModel.addRow(row);
+            }
+        } catch (Exception e) {}
+    }
+
+    private JPanel createLiveCard(String title, JLabel valueLabel, Color accent) {
         RoundedPanel card = new RoundedPanel(20, Color.WHITE);
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setBorder(new EmptyBorder(25, 25, 25, 25));
@@ -211,13 +270,12 @@ public class MainDashboardUI extends JFrame {
         t.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 13));
         t.setForeground(UIConstants.TEXT_SECONDARY);
         
-        JLabel v = new JLabel(value);
-        v.setFont(new Font("Segoe UI", Font.BOLD, 36));
-        v.setForeground(accent);
+        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 36));
+        valueLabel.setForeground(accent);
 
         card.add(t);
         card.add(Box.createVerticalStrut(10));
-        card.add(v);
+        card.add(valueLabel);
         return card;
     }
 }
