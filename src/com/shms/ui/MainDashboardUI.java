@@ -26,6 +26,11 @@ public class MainDashboardUI extends JFrame {
     private static final String CARD_BILLING     = "BILLING";
     private static final String CARD_REPORTS     = "REPORTS";
 
+    private static final String CARD_ADMIN       = "ADMIN_MGMT";
+    private static final String CARD_AUDIT       = "AUDIT_LOGS";
+
+    private JPanel chartArea;
+
     public MainDashboardUI(User user) {
         this.currentUser = user;
         initializeModernUI();
@@ -107,6 +112,8 @@ public class MainDashboardUI extends JFrame {
             addModernMenuButton("💊 Retail Pharmacy",  CARD_PHARMACY);
             addModernMenuButton("💰 Billing & Finance", CARD_BILLING);
             addModernMenuButton("📊 Analytical Reports", CARD_REPORTS);
+            addModernMenuButton("🛠️ System Administration", CARD_ADMIN);
+            addModernMenuButton("🔓 Security Audit Logs", CARD_AUDIT);
         }
 
         sideMenu.add(Box.createVerticalGlue());
@@ -161,6 +168,8 @@ public class MainDashboardUI extends JFrame {
         contentArea.add(new PharmacyPanel(),    CARD_PHARMACY);
         contentArea.add(new ReportPanel(),      CARD_REPORTS);
         contentArea.add(new BillingPanel(), CARD_BILLING);
+        contentArea.add(new SuperAdminPanel(),  CARD_ADMIN);
+        contentArea.add(new AuditTrailPanel(),  CARD_AUDIT);
 
         cardLayout.show(contentArea, CARD_HOME);
         add(contentArea, BorderLayout.CENTER);
@@ -202,6 +211,13 @@ public class MainDashboardUI extends JFrame {
         kpiGrid.add(createLiveCard("⚖️ REVENUE", lblTodayRev, UIConstants.DANGER_RED));
         kpiGrid.add(createLiveCard("📅 BOOKINGS", lblApptCount, UIConstants.SIDE_MENU_DARK));
         
+        JPanel analyticsPanel = new JPanel(new BorderLayout(0, 20));
+        analyticsPanel.setOpaque(false);
+        analyticsPanel.add(kpiGrid, BorderLayout.NORTH);
+        
+        // JFreeChart KPI Section
+        analyticsPanel.add(createKPIChart(), BorderLayout.CENTER);
+        
         JPanel midContent = new JPanel(new BorderLayout(0, 25));
         midContent.setOpaque(false);
         midContent.add(kpiGrid, BorderLayout.NORTH);
@@ -238,27 +254,51 @@ public class MainDashboardUI extends JFrame {
         return home;
     }
 
+    private final com.shms.service.DashboardService dashboardService = new com.shms.service.DashboardService();
+
+    /**
+     * Non-Blocking UI Sync: Uses SwingWorker to fetch database data 
+     * on a background thread while keeping the UI responsive.
+     */
     private void refreshDashboardData() {
-        try {
-            // Stats Queries
-            int pCount = new com.shms.dao.PatientDAO().getAllPatients().size();
-            int dCount = new com.shms.dao.DoctorDAO().getAllDoctors().size();
-            double rev = new com.shms.service.BillingService().getDailyRevenue();
-            int aCount = new com.shms.dao.AppointmentDAO().getDailyAppointmentCount();
-
-            // Update Labels
-            lblTotalPatients.setText(String.valueOf(pCount));
-            lblActiveDoctors.setText(String.valueOf(dCount));
-            lblTodayRev.setText("Rs. " + String.format("%.0f", rev));
-            lblApptCount.setText(String.valueOf(aCount));
-
-            // Update Feed
-            dashboardFeedModel.setRowCount(0);
-            java.util.List<Object[]> feed = new com.shms.dao.AppointmentDAO().getRecentActivityFeed();
-            for (Object[] row : feed) {
-                dashboardFeedModel.addRow(row);
+        SwingWorker<com.shms.service.DashboardService.DashboardStats, Void> worker = new SwingWorker<>() {
+            @Override
+            protected com.shms.service.DashboardService.DashboardStats doInBackground() throws Exception {
+                // RUN ON BACKGROUND THREAD (No UI Lag)
+                return dashboardService.getLiveStats();
             }
-        } catch (Exception e) {}
+
+            @Override
+            protected void done() {
+                try {
+                    // RUN ON UI THREAD (EDT)
+                    com.shms.service.DashboardService.DashboardStats stats = get();
+                    
+                    lblTotalPatients.setText(String.valueOf(stats.pCount));
+                    lblActiveDoctors.setText(String.valueOf(stats.dCount));
+                    lblTodayRev.setText("Rs. " + String.format("%.0f", stats.totalRevenue));
+                    lblApptCount.setText(String.valueOf(stats.aCount));
+
+                    dashboardFeedModel.setRowCount(0);
+                    if (stats.feed != null) {
+                        for (Object[] row : stats.feed) {
+                            dashboardFeedModel.addRow(row);
+                        }
+                    }
+
+                    // Refresh Zero-Dependency Analytics Chart
+                    if (stats.trendData != null && chartArea != null) {
+                        chartArea.removeAll();
+                        chartArea.add(new ModernBarChart(stats.trendData), BorderLayout.CENTER);
+                        chartArea.revalidate();
+                        chartArea.repaint();
+                    }
+                } catch (Exception e) {
+                    System.err.println("[Dashboard] Async Refresh Failed: " + e.getMessage());
+                }
+            }
+        };
+        worker.execute();
     }
 
     private JPanel createLiveCard(String title, JLabel valueLabel, Color accent) {
@@ -277,5 +317,23 @@ public class MainDashboardUI extends JFrame {
         card.add(Box.createVerticalStrut(10));
         card.add(valueLabel);
         return card;
+    }
+
+    private JPanel createKPIChart() {
+        RoundedPanel chartContainer = new RoundedPanel(25, Color.WHITE);
+        chartContainer.setLayout(new BorderLayout());
+        chartContainer.setPreferredSize(new Dimension(0, 300));
+        chartContainer.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        JLabel title = new JLabel("7-DAY REVENUE ANALYTICS (TREND)");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        title.setForeground(UIConstants.TEXT_PRIMARY);
+        chartContainer.add(title, BorderLayout.NORTH);
+
+        chartArea = new JPanel(new BorderLayout());
+        chartArea.setOpaque(false);
+        chartContainer.add(chartArea, BorderLayout.CENTER);
+
+        return chartContainer;
     }
 }

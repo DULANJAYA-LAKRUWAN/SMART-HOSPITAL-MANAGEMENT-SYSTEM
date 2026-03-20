@@ -10,6 +10,7 @@ import com.shms.model.Appointment;
 import com.shms.ui.components.*;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.List;
 
@@ -28,8 +29,12 @@ public class BillingPanel extends BaseModernPanel {
     }
 
     private void initializeUI() {
-        JPanel centerWrapper = new JPanel(new GridBagLayout());
-        centerWrapper.setOpaque(false);
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.setFont(new Font("Segoe UI", Font.BOLD, 14));
+
+        // --- TAB 1: GENERATE INVOICE ---
+        JPanel generateTab = new JPanel(new GridBagLayout());
+        generateTab.setOpaque(false);
 
         JPanel billingCard = createCardPanel();
         billingCard.setPreferredSize(new Dimension(550, 700));
@@ -42,15 +47,12 @@ public class BillingPanel extends BaseModernPanel {
         sectionalLabel.setBorder(new EmptyBorder(0, 0, 30, 0));
         billingCard.add(sectionalLabel);
 
-        // Selection 1: Patient
         List<Patient> patients = new PatientDAO().getAllPatients();
         ComboItem[] pItems = patients.stream()
             .map(p -> new ComboItem(p.getPatientId(), p.getFirstName() + " " + p.getLastName()))
             .toArray(ComboItem[]::new);
         cmbPatient = (RoundedComboBox<ComboItem>) createModernCombo(billingCard, "Select Payer (Patient)", pItems);
 
-        // Selection 2: Appointment Reference
-        // Note: For simplicity, we load all appointments. In a production app, we'd filter by patient.
         List<Appointment> appts = new AppointmentDAO().getAllAppointments();
         ComboItem[] aItems = appts.stream()
             .map(a -> new ComboItem(a.getAppointmentId(), "Session: " + a.getAppointmentDate() + " [ID: " + a.getAppointmentId() + "]"))
@@ -67,8 +69,45 @@ public class BillingPanel extends BaseModernPanel {
         btnBill.addActionListener(e -> generateInvoice());
         billingCard.add(btnBill);
 
-        centerWrapper.add(billingCard);
-        add(centerWrapper, BorderLayout.CENTER);
+        generateTab.add(billingCard);
+
+        // --- TAB 2: BILLING HISTORY ---
+        JPanel historyTab = new JPanel(new BorderLayout(0, 25));
+        historyTab.setOpaque(false);
+        historyTab.setBorder(new EmptyBorder(25, 0, 0, 0));
+
+        DefaultTableModel histModel = new DefaultTableModel(new String[]{"Bill ID", "Patient ID", "Appt ID", "Consultation", "Pharmacy", "Grand Total", "Status", "Date"}, 0);
+        JTable tblHistory = new JTable(histModel);
+        styleTable(tblHistory);
+        
+        JScrollPane scroll = new JScrollPane(tblHistory);
+        styleScrollPane(scroll);
+        historyTab.add(scroll, BorderLayout.CENTER);
+
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        actionPanel.setOpaque(false);
+        JButton btnRefresh = createPrimaryButton("↻ Load Transaction History");
+        btnRefresh.addActionListener(e -> {
+            histModel.setRowCount(0);
+            List<Bill> bills = billingService.getAllBills();
+            for (Bill b : bills) {
+                histModel.addRow(new Object[]{
+                    b.getBillId(), b.getPatientId(), b.getAppointmentId(), 
+                    b.getConsultationTotal(), b.getPharmacyTotal(), b.getGrandTotal(),
+                    b.getPaymentStatus(), b.getBillDate()
+                });
+            }
+        });
+        actionPanel.add(btnRefresh);
+        historyTab.add(actionPanel, BorderLayout.NORTH);
+
+        tabs.addTab("💳 Invoice Generation", generateTab);
+        tabs.addTab("📜 Billing History & Archives", historyTab);
+
+        add(tabs, BorderLayout.CENTER);
+        
+        // Load initial history
+        btnRefresh.doClick();
     }
 
     private void generateInvoice() {

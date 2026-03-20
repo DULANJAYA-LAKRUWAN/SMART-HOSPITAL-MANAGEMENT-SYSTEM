@@ -37,14 +37,22 @@ public class BillingDAO {
     }
 
     public boolean updatePaymentStatus(int id, String status) {
+        try (Connection conn = DBConnection.getConnection()) {
+            return updatePaymentStatusTransactional(conn, id, status);
+        } catch (SQLException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Transactional Update: Participates in an existing connection/transaction.
+     */
+    public boolean updatePaymentStatusTransactional(Connection conn, int id, String status) throws SQLException {
         String query = "UPDATE bills SET payment_status = ? WHERE bill_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement pst = conn.prepareStatement(query)) {
+        try (PreparedStatement pst = conn.prepareStatement(query)) {
             pst.setString(1, status);
             pst.setInt(2, id);
             return pst.executeUpdate() > 0;
-        } catch (SQLException e) {
-            return false;
         }
     }
 

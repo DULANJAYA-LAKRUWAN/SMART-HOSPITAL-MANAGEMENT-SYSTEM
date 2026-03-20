@@ -1,7 +1,6 @@
 package com.shms.ui;
 
 import com.shms.service.MedicineService;
-import com.shms.dao.LogDAO;
 import com.shms.dao.MedicineDAO;
 import com.shms.model.Medicine;
 import com.shms.ui.components.*;
@@ -18,19 +17,24 @@ public class PharmacyPanel extends BaseModernPanel {
     private JTable tblCart;
     private DefaultTableModel model;
     private MedicineService medicineService;
-    private LogDAO logDAO;
     private JLabel lblTotal;
     private double grandTotal = 0.0;
 
     public PharmacyPanel() {
         super("Pharmacy POS & Inventory Dispatch");
         this.medicineService = new MedicineService();
-        this.logDAO = new LogDAO();
         initializeUI();
     }
 
     private void initializeUI() {
-        // --- TOP SCANNER & SELECTION BAR ---
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        
+        // --- TAB 1: POS SYSTEM ---
+        JPanel posTab = new JPanel(new BorderLayout(0, 20));
+        posTab.setOpaque(false);
+        
+        // Top Scanner & Selection Bar
         JPanel topBar = createCardPanel();
         topBar.setLayout(new FlowLayout(FlowLayout.LEFT, 15, 15));
         
@@ -39,7 +43,6 @@ public class PharmacyPanel extends BaseModernPanel {
         lblHeader.setForeground(UIConstants.ACCENT_BLUE);
         topBar.add(lblHeader);
 
-        // 1. Barcode Field
         txtBarcode = new RoundedTextField(15);
         txtBarcode.setPreferredSize(new Dimension(200, 45));
         txtBarcode.setPlaceholder("Scan Barcode...");
@@ -48,7 +51,6 @@ public class PharmacyPanel extends BaseModernPanel {
 
         topBar.add(new JLabel("OR Selection:"));
 
-        // 2. Manual Selector
         List<Medicine> meds = new MedicineDAO().getAllMedicines();
         ComboItem[] medItems = meds.stream()
             .map(m -> new ComboItem(m.getMedicineId(), m.getName() + " [Rs." + m.getUnitPrice() + "]"))
@@ -74,9 +76,9 @@ public class PharmacyPanel extends BaseModernPanel {
         btnAdd.addActionListener(e -> handleManualAdd());
         topBar.add(btnAdd);
 
-        add(topBar, BorderLayout.NORTH);
+        posTab.add(topBar, BorderLayout.NORTH);
 
-        // --- CART TABLE ---
+        // Cart Table
         JPanel tableCard = createCardPanel();
         tableCard.setLayout(new BorderLayout());
         tableCard.setBorder(new EmptyBorder(10, 10, 10, 10));
@@ -89,9 +91,9 @@ public class PharmacyPanel extends BaseModernPanel {
         styleScrollPane(scroll);
         tableCard.add(scroll, BorderLayout.CENTER);
 
-        add(tableCard, BorderLayout.CENTER);
+        posTab.add(tableCard, BorderLayout.CENTER);
 
-        // --- FOOTER ---
+        // Footer
         JPanel footerBar = createCardPanel();
         footerBar.setLayout(new BorderLayout(30, 0));
         footerBar.setBorder(new EmptyBorder(20, 30, 20, 30));
@@ -107,7 +109,42 @@ public class PharmacyPanel extends BaseModernPanel {
         btnCheckout.addActionListener(e -> finalizeSale());
         footerBar.add(btnCheckout, BorderLayout.WEST);
         
-        add(footerBar, BorderLayout.SOUTH);
+        posTab.add(footerBar, BorderLayout.SOUTH);
+
+        // --- TAB 2: INVENTORY HISTORY ---
+        JPanel inventoryTab = new JPanel(new BorderLayout(0, 20));
+        inventoryTab.setOpaque(false);
+        inventoryTab.setBorder(new EmptyBorder(20, 0, 0, 0));
+
+        DefaultTableModel invModel = new DefaultTableModel(new String[]{"ID", "Barcode", "Item Name", "Unit Price", "Current Stock", "Expiry Status"}, 0);
+        JTable tblInventory = new JTable(invModel);
+        styleTable(tblInventory);
+        
+        JScrollPane invScroll = new JScrollPane(tblInventory);
+        styleScrollPane(invScroll);
+        inventoryTab.add(invScroll, BorderLayout.CENTER);
+
+        JPanel invActions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        invActions.setOpaque(false);
+        JButton btnRefresh = createPrimaryButton("🔄 Refresh Inventory Data");
+        btnRefresh.addActionListener(e -> {
+            invModel.setRowCount(0);
+            List<Medicine> items = medicineService.getAllMedicines();
+            for (Medicine m : items) {
+                String expiry = (m.getExpiryDate() != null && m.getExpiryDate().isBefore(java.time.LocalDate.now().plusMonths(3))) ? "❗ SHORT EXPIRY" : "✅ OK";
+                invModel.addRow(new Object[]{m.getMedicineId(), m.getBarcode(), m.getName(), m.getUnitPrice(), m.getStockQuantity(), expiry});
+            }
+        });
+        invActions.add(btnRefresh);
+        inventoryTab.add(invActions, BorderLayout.NORTH);
+
+        tabs.addTab("🛒 Sales Terminal (POS)", posTab);
+        tabs.addTab("📦 Real-time Inventory Hub", inventoryTab);
+        
+        add(tabs, BorderLayout.CENTER);
+        
+        // Initial load for inventory tab
+        btnRefresh.doClick();
     }
 
     private void handleBarcodeScan() {
@@ -139,6 +176,12 @@ public class PharmacyPanel extends BaseModernPanel {
         }
     }
 
+    private final com.shms.service.AuditService auditService = new com.shms.service.AuditService();
+    private final com.shms.service.PrintService printService = new com.shms.service.PrintService();
+
+    /**
+     * FINALIZES SALE: Deducts inventory, logs audit, and triggers printer.
+     */
     private void finalizeSale() {
         JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
         if (model.getRowCount() == 0) {
@@ -146,21 +189,44 @@ public class PharmacyPanel extends BaseModernPanel {
             return;
         }
 
+        StringBuilder receipt = new StringBuilder(com.shms.service.PrintService.getReceiptHeader());
+        receipt.append(String.format("%-15s %3s %9s\n", "ITEM", "QTY", "PRICE"));
+        receipt.append("---------------------------------\n");
+
         boolean success = true;
         for (int i = 0; i < model.getRowCount(); i++) {
             int medId = (Integer) model.getValueAt(i, 0);
+            String name = (String) model.getValueAt(i, 1);
             int qty = (Integer) model.getValueAt(i, 2);
-            if (!medicineService.updateStockBalance(medId, qty)) success = false;
+            double sub = (Double) model.getValueAt(i, 4);
+
+            if (!medicineService.updateStockBalance(medId, qty)) {
+                success = false;
+                break;
+            }
+            receipt.append(String.format("%-15s %3d %9.2f\n", name, qty, sub));
         }
 
         if (success) {
-            logDAO.record(1, "PHARMA_SALE: Rs. " + grandTotal, "PHARMACY_POS");
-            Toast.showSuccess(parentFrame, "Sale Finalized!");
+            receipt.append("---------------------------------\n");
+            receipt.append(String.format("TOTAL:          Rs. %11.2f\n", grandTotal));
+            receipt.append("---------------------------------\n");
+            receipt.append("     Authorized PHARMA Section   \n");
+
+            // 1. Audit Secure Event
+            auditService.logAnonymous("PHARMA_SALE: Rs. " + grandTotal, "PHARMACY_POS");
+            
+            // 2. Clear UI
+            Toast.showSuccess(parentFrame, "Inventory Updated!");
+            
+            // 3. Trigger Printing (Async)
+            printService.printReceipt(receipt.toString());
+
             model.setRowCount(0);
             grandTotal = 0.0;
             lblTotal.setText("TOTAL: Rs. 0.00");
         } else {
-            Toast.showError(parentFrame, "Critical Stock Error.");
+            Toast.showError(parentFrame, "Sale Rollback: Check Stock Inventory!");
         }
     }
 }

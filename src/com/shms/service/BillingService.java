@@ -31,8 +31,34 @@ public class BillingService {
         return billingDAO.saveBill(bill);
     }
 
-    public boolean updatePaymentStatus(int billId, String status) {
-        return billingDAO.updatePaymentStatus(billId, status);
+
+    /**
+     * ATOMIC FINANCIAL TRANSACTION: Implements manual commit/rollback protocol.
+     * Ensures data integrity across Billing and Audit tables.
+     */
+    public boolean processOfficialPayment(int billId, com.shms.model.User user) {
+        try (java.sql.Connection conn = com.shms.db.DBConnection.getConnection()) {
+            conn.setAutoCommit(false); // START ATOMIC TRANSACTION
+            
+            try {
+                // 1. Update Payment Status in Billing Table
+                boolean ok = billingDAO.updatePaymentStatusTransactional(conn, billId, "PAID");
+                if (!ok) throw new java.sql.SQLException("Billing update failure.");
+
+                // 2. Log Financial Audit Event
+                new com.shms.dao.AuditDAO().logTransactional(conn, user.getUserId(), "PAYMENT_COMPLETED", "BILLING_ID_" + billId);
+
+                conn.commit(); // COMMIT ALL CHANGES
+                return true;
+            } catch (java.sql.SQLException e) {
+                conn.rollback(); // UNDO ALL ON FAILURE
+                System.err.println("[Billing] Transaction Rollback: " + e.getMessage());
+                return false;
+            }
+        } catch (java.sql.SQLException e) {
+            System.err.println("[Billing] Persistence Error: " + e.getMessage());
+            return false;
+        }
     }
 
     public List<Bill> getBillsByPatient(int patientId) {

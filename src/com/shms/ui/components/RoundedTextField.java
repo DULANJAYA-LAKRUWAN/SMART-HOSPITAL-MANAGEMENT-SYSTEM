@@ -13,28 +13,31 @@ public class RoundedTextField extends JTextField {
 
     private int radius = 25;
     private Color borderColor = new Color(200, 200, 200);
-    private Color focusColor = new Color(0, 112, 243);
     private boolean isFocused = false;
     private String placeholder = "";
+
+    public RoundedTextField(String placeholder) {
+        this(20);
+        this.placeholder = placeholder;
+    }
 
     public RoundedTextField(int columns) {
         super(columns);
         setOpaque(false);
         setBorder(new EmptyBorder(10, 15, 10, 15));
         setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        setMargin(new Insets(10, 15, 10, 15));
 
         addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) {
                 isFocused = true;
-                borderColor = focusColor;
                 repaint();
             }
 
             @Override
             public void focusLost(FocusEvent e) {
                 isFocused = false;
-                borderColor = new Color(200, 200, 200);
                 repaint();
             }
         });
